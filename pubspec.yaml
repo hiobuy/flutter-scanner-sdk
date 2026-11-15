@@ -1,0 +1,28 @@
+name: hiobuy_scanner
+description: "High-performance native barcode scanning engine for Flutter (CameraX + ML Kit on Android, AVFoundation on iOS)."
+version: 0.1.0
+repository: https://github.com/hiobuy/flutter-scanner-sdk
+publish_to: 'none'
+
+environment:
+  # Kept low on purpose so apps on older Flutter releases can depend on this.
+  sdk: '>=3.3.0 <4.0.0'
+  flutter: '>=3.19.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.hiobuy.hiobuy_scanner
+        pluginClass: HiobuyScannerPlugin
+      ios:
+        pluginClass: HiobuyScannerPlugin
