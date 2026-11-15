@@ -1,6 +1,6 @@
 PODS:
   - Flutter (1.0.0)
-  - hiobuy_scanner (0.0.1):
+  - hiobuy_scanner (0.1.0):
     - Flutter
   - integration_test (0.0.1):
     - Flutter
@@ -20,7 +20,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  hiobuy_scanner: 6136d8725fa4e753989c351372791f633e3d04b6
+  hiobuy_scanner: 26b8f7ecadec151119515241e96746d06315aa9a
   integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
 
 PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e

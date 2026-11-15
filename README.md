@@ -7,6 +7,7 @@ A fast native barcode scanning engine for Flutter, built for warehouse and logis
 - **The camera stays open.** Consecutive scans never restart the camera; stopping and starting again is a warm start.
 - **Native end to end.** Frames are decoded natively and never cross into Dart. Mode gating, de-duplication and haptic/audio feedback also run natively, so the operator gets feedback before Dart is involved.
 - **Point roughly, from arm's length.** Whole-frame detection picks the code nearest the centre; on Android the camera zooms in automatically when a code is too small to read.
+- **One label, one result.** Labels often carry several barcodes; the others are ignored while the reported one is still in view.
 - **No Google Play services required.** Android uses the bundled ML Kit model.
 
 | | Android | iOS |
@@ -104,6 +105,8 @@ This is a convenience for the operator. **It is not a substitute for server-side
 | `zoom` | `null` (automatic) | Fixed zoom ratio. |
 | `autoZoom` | `true` | Android only. Zooms in on codes too small to decode. |
 | `confirmations` | `2` | Android only. Consecutive frames that must agree; see below. |
+| `fastAcceptPatterns` | `[]` | Android only. Regular expressions for values that may skip `confirmations`. |
+| `labelHold` | 400 ms | After a result, other codes are ignored until the reported one has left the view for this long. `Duration.zero` disables it. |
 
 `controller.updateConfig(...)` applies changes without restarting the camera, except for `resolution`.
 
@@ -112,6 +115,20 @@ Other controls: `setTorch`, `toggleTorch`, `focusAt`, `getPermission`, `requestP
 ### Misread protection (Android)
 
 ML Kit occasionally decodes a blurred or partly visible 1D barcode into garbage. With `confirmations: 2` a value is reported only once two consecutive frames agree, which a misread almost never does. It costs one extra frame in the best case and longer when the image is still settling. Set it to `1` to report the first decode.
+
+To avoid that wait for codes you recognise, list the formats your labels use:
+
+```dart
+ScannerConfig(
+  fastAcceptPatterns: [r'JT\d{13}', r'\d{12,15}'],
+)
+```
+
+A value that fully matches any pattern (`java.util.regex` syntax) is reported on the first frame; anything else still needs `confirmations` frames. Keep the patterns specific, since a loose one lets misreads through.
+
+### Several barcodes on one label
+
+Each frame, the code nearest the centre of the view (or of `scanRegion`) is chosen. After it is reported, `labelHold` ignores every other code until that one has been out of view for 400 ms. Moving to the next parcel releases the hold. Without it, a frame in which the chosen code fails to decode would report its neighbour instead.
 
 ## Timing
 

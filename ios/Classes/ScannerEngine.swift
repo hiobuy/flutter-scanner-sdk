@@ -11,6 +11,7 @@ struct EngineConfig {
   var mode: ResultGate.Mode = .continuous
   var formats: [String] = ["code128", "code39", "ean13", "ean8", "itf"]
   var dedupeWindowMs: Double = 1500
+  var labelHoldMs: Double = 400
   /// Fractions of the preview view; nil = whole view.
   var region: CGRect?
   var vibrate = true
@@ -24,6 +25,7 @@ struct EngineConfig {
     mode = (a["mode"] as? String) == "single" ? .single : .continuous
     if let f = a["formats"] as? [String] { formats = f }
     if let w = a["dedupeWindowMs"] as? NSNumber { dedupeWindowMs = w.doubleValue }
+    if let h = a["labelHoldMs"] as? NSNumber { labelHoldMs = h.doubleValue }
     if let r = a["region"] as? [NSNumber], r.count == 4 {
       region = CGRect(
         x: r[0].doubleValue, y: r[1].doubleValue,
@@ -111,6 +113,7 @@ final class ScannerEngine: NSObject {
   private var detections = 0
   private var emitted = 0
   private var duplicates = 0
+  private var heldBack = 0
 
   private weak var previewView: ScannerPreviewView?
 
@@ -171,7 +174,7 @@ final class ScannerEngine: NSObject {
         }
         self.applyDeviceTuning()
         self.applyMetadataTypes(paused: false)
-        self.gate.configure(mode: newConfig.mode, windowMs: newConfig.dedupeWindowMs)
+        self.gate.configure(mode: newConfig.mode, windowMs: newConfig.dedupeWindowMs, holdMs: newConfig.labelHoldMs)
         self.gate.resetDedupe()
         self.gate.open()
         self.locked {
@@ -180,6 +183,7 @@ final class ScannerEngine: NSObject {
           self.detections = 0
           self.emitted = 0
           self.duplicates = 0
+          self.heldBack = 0
           self.awaitingFirstFrame = true
           self.startT0 = t0
         }
@@ -271,7 +275,7 @@ final class ScannerEngine: NSObject {
       if old.zoom != newConfig.zoom { self.applyDeviceTuning() }
       let analysisPaused = self.locked { self.pauseLevel == "analysis" }
       self.applyMetadataTypes(paused: analysisPaused)
-      self.gate.configure(mode: newConfig.mode, windowMs: newConfig.dedupeWindowMs)
+      self.gate.configure(mode: newConfig.mode, windowMs: newConfig.dedupeWindowMs, holdMs: newConfig.labelHoldMs)
       if old.mode != newConfig.mode, self.locked({ self.pauseLevel == nil }) { self.gate.open() }
       DispatchQueue.main.async {
         self.applyRegion()
@@ -289,6 +293,7 @@ final class ScannerEngine: NSObject {
         "detections": detections,
         "emitted": emitted,
         "duplicatesSuppressed": duplicates,
+        "heldBack": heldBack,
         "outsideRegion": 0,
       ]
     }
@@ -559,6 +564,7 @@ extension ScannerEngine: AVCaptureMetadataOutputObjectsDelegate {
         emitted += 1
         sequence += 1
       case .duplicate: duplicates += 1
+      case .held: heldBack += 1
       case .closed: break
       }
       return (config.vibrate, config.beep, sequence, orientation)

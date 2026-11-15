@@ -207,6 +207,8 @@ class ScannerController {
       emitted: n('emitted'),
       duplicatesSuppressed: n('duplicatesSuppressed'),
       outsideRegion: n('outsideRegion'),
+      heldBack: n('heldBack'),
+      fastAccepted: n('fastAccepted'),
       droppedWhileBusy: _droppedWhileBusy,
     );
   }

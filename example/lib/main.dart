@@ -23,6 +23,10 @@ class DemoApp extends StatelessWidget {
   }
 }
 
+/// Example tracking-number formats for the "fast accept" switch. A real app
+/// lists the formats its own labels use.
+const _trackingPatterns = [r'(JT|YT)\d{13}(-\d+)?', r'\d{12,15}'];
+
 /// Region used by the demo: a wide band, the natural shape for 1D labels.
 const _band = Rect.fromLTRB(0.06, 0.26, 0.94, 0.50);
 
@@ -132,6 +136,8 @@ class _ScanPageState extends State<ScanPage> {
                 onTapFocus: _showFocus,
                 placeholder: _Placeholder(state: state, error: _startError, controller: _controller, onRetry: _start),
               ),
+              // Centre mark: the code nearest this point is the one picked.
+              const IgnorePointer(child: Center(child: Icon(Icons.add, color: Colors.white70, size: 28))),
               if (_focusPoint != null) _FocusRing(point: _focusPoint!),
               IgnorePointer(
                 child: AnimatedContainer(
@@ -306,7 +312,7 @@ class _ScanPageState extends State<ScanPage> {
         startup == null ? '相机启动' : (startup.warm ? '热启动 会话/首帧' : '冷启动 会话/首帧'),
         startup == null ? '–' : '${_ms(startup.sessionReadyMs)} / ${_ms(startup.firstFrameMs)}',
       ),
-      ('分析帧数', _stats.framesAnalyzed == 0 ? '–' : '${_stats.framesAnalyzed}'),
+      ('同标签忽略 / 快速通过', '${_stats.heldBack} / ${_stats.fastAccepted}'),
       ('忙时丢弃', '${_stats.droppedWhileBusy}'),
     ];
     return GridView.count(
@@ -420,6 +426,22 @@ class _ScanPageState extends State<ScanPage> {
                     subtitle: const Text('连续两帧结果一致才上报，防误读'),
                     value: _config.confirmations > 1,
                     onChanged: (on) => apply(_config.copyWith(confirmations: on ? 2 : 1)),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('单号格式快速通过（仅 Android）'),
+                    subtitle: Text('符合 ${_trackingPatterns.join('  或  ')} 的首帧即上报'),
+                    value: _config.fastAcceptPatterns.isNotEmpty,
+                    onChanged: (on) => apply(_config.copyWith(fastAcceptPatterns: on ? _trackingPatterns : const [])),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('同一标签只报一个'),
+                    subtitle: const Text('已报条码离开画面 0.4 秒后才接受其他条码'),
+                    value: _config.labelHold > Duration.zero,
+                    onChanged: (on) => apply(
+                      _config.copyWith(labelHold: on ? const Duration(milliseconds: 400) : Duration.zero),
+                    ),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,

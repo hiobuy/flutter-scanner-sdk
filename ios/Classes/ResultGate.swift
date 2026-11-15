@@ -6,7 +6,7 @@ import Foundation
 /// The Android implementation (`ResultGate.kt`) must behave identically.
 final class ResultGate {
   enum Mode { case single, continuous }
-  enum Decision: Equatable { case emit, duplicate, closed }
+  enum Decision: Equatable { case emit, duplicate, closed, held }
 
   static let maxEntries = 64
 
@@ -14,13 +14,17 @@ final class ResultGate {
   private var mode: Mode = .continuous
   private var windowMs: Double = 1500
   private var accepting = true
+  private var holdMs: Double = 0
+  private var lastEmitted: String?
+  private var lastEmittedSeenMs: Double = 0
   /// value → time it was last seen (not last emitted), in milliseconds.
   private var lastSeen: [String: Double] = [:]
 
-  func configure(mode: Mode, windowMs: Double) {
+  func configure(mode: Mode, windowMs: Double, holdMs: Double = 0) {
     lock.lock(); defer { lock.unlock() }
     self.mode = mode
     self.windowMs = max(0, windowMs)
+    self.holdMs = max(0, holdMs)
   }
 
   /// Offers a detection made at `nowMs` (any monotonic clock).
@@ -28,8 +32,17 @@ final class ResultGate {
   /// A value is a duplicate while it keeps being seen within the window, so a
   /// barcode held in view is reported once, and reported again only after it
   /// has been out of view for a full window (or after `resetDedupe`).
+  ///
+  /// Label hold: a label often carries more than one barcode. After a result,
+  /// any *other* value is held back until the reported one has been out of
+  /// view for `holdMs`, so the camera resting on one label yields one result.
   func offer(_ value: String, nowMs: Double) -> Decision {
     lock.lock(); defer { lock.unlock() }
+    if value == lastEmitted {
+      lastEmittedSeenMs = nowMs
+    } else if holdMs > 0, lastEmitted != nil, nowMs - lastEmittedSeenMs < holdMs {
+      return .held
+    }
     let seenRecently: Bool
     if windowMs > 0, let last = lastSeen[value], nowMs - last < windowMs {
       seenRecently = true
@@ -44,6 +57,8 @@ final class ResultGate {
     if !accepting { return .closed }
     if seenRecently { return .duplicate }
     if mode == .single { accepting = false }
+    lastEmitted = value
+    lastEmittedSeenMs = nowMs
     return .emit
   }
 
@@ -66,6 +81,7 @@ final class ResultGate {
   func resetDedupe() {
     lock.lock(); defer { lock.unlock() }
     lastSeen.removeAll()
+    lastEmitted = nil
   }
 
   private func remember(_ value: String, _ nowMs: Double) {

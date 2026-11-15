@@ -103,6 +103,8 @@ class ScannerConfig {
     this.zoom,
     this.autoZoom = true,
     this.confirmations = 2,
+    this.fastAcceptPatterns = const [],
+    this.labelHold = const Duration(milliseconds: 400),
   });
 
   final ScanMode mode;
@@ -142,6 +144,21 @@ class ScannerConfig {
   /// No effect on iOS, whose system decoder validates internally.
   final int confirmations;
 
+  /// Android: values that fully match one of these regular expressions
+  /// (`java.util.regex` syntax) are reported on the first frame, skipping
+  /// [confirmations]. Give the formats your labels actually use, for example
+  /// `r'JT\d{13}'`; a misread will not match, a real code does not wait.
+  /// Keep patterns specific: something as loose as `.*` defeats the check.
+  ///
+  /// Empty (the default) disables this. No effect on iOS.
+  final List<String> fastAcceptPatterns;
+
+  /// A label often carries more than one barcode. After a result, other
+  /// values are ignored until the reported one has been out of view for this
+  /// long, so resting the camera on one label gives one result: the code
+  /// nearest the centre. [Duration.zero] disables it.
+  final Duration labelHold;
+
   ScannerConfig copyWith({
     ScanMode? mode,
     Set<BarcodeFormat>? formats,
@@ -154,6 +171,8 @@ class ScannerConfig {
     bool clearZoom = false,
     bool? autoZoom,
     int? confirmations,
+    List<String>? fastAcceptPatterns,
+    Duration? labelHold,
   }) {
     return ScannerConfig(
       mode: mode ?? this.mode,
@@ -165,6 +184,8 @@ class ScannerConfig {
       zoom: clearZoom ? null : (zoom ?? this.zoom),
       autoZoom: autoZoom ?? this.autoZoom,
       confirmations: confirmations ?? this.confirmations,
+      fastAcceptPatterns: fastAcceptPatterns ?? this.fastAcceptPatterns,
+      labelHold: labelHold ?? this.labelHold,
     );
   }
 
@@ -181,6 +202,8 @@ class ScannerConfig {
       'zoom': zoom,
       'autoZoom': autoZoom,
       'confirmations': confirmations,
+      'fastAcceptPatterns': fastAcceptPatterns,
+      'labelHoldMs': labelHold.inMilliseconds,
     };
   }
 }
@@ -305,6 +328,8 @@ class ScannerStats {
     this.emitted = 0,
     this.duplicatesSuppressed = 0,
     this.outsideRegion = 0,
+    this.heldBack = 0,
+    this.fastAccepted = 0,
     this.droppedWhileBusy = 0,
   });
 
@@ -322,6 +347,13 @@ class ScannerStats {
 
   /// Detections rejected for lying outside the scan region.
   final int outsideRegion;
+
+  /// Detections ignored by [ScannerConfig.labelHold].
+  final int heldBack;
+
+  /// Results reported on the first frame via
+  /// [ScannerConfig.fastAcceptPatterns]. Always 0 on iOS.
+  final int fastAccepted;
 
   /// Results discarded by [ScannerController.onScan] while a handler was busy.
   final int droppedWhileBusy;

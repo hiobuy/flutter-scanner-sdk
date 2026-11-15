@@ -89,6 +89,36 @@ class ResultGateTest {
     }
 
     @Test
+    fun labelHoldIgnoresSecondBarcodeOnSameLabel() {
+        val g = ResultGate().apply { configure(Mode.CONTINUOUS, 1500.0, 400.0) }
+        assertEquals(Decision.EMIT, g.offer("A", 0.0))
+        assertEquals(Decision.DUPLICATE, g.offer("A", 33.0))
+        assertEquals(Decision.HELD, g.offer("B", 66.0)) // A flickered out for a frame
+        assertEquals(Decision.DUPLICATE, g.offer("A", 100.0))
+        assertEquals(Decision.HELD, g.offer("B", 450.0)) // still within 400 ms of A at 100
+    }
+
+    @Test
+    fun labelHoldReleasesOnceReportedCodeLeavesView() {
+        val g = ResultGate().apply { configure(Mode.CONTINUOUS, 1500.0, 400.0) }
+        assertEquals(Decision.EMIT, g.offer("A", 0.0))
+        assertEquals(Decision.HELD, g.offer("C", 399.0))
+        assertEquals(Decision.EMIT, g.offer("C", 400.0)) // next parcel
+        assertEquals(Decision.HELD, g.offer("A", 500.0)) // hold now belongs to C
+    }
+
+    @Test
+    fun labelHoldIsClearedByResetAndDisabledAtZero() {
+        val g = ResultGate().apply { configure(Mode.CONTINUOUS, 1500.0, 400.0) }
+        assertEquals(Decision.EMIT, g.offer("A", 0.0))
+        g.resetDedupe()
+        assertEquals(Decision.EMIT, g.offer("B", 10.0))
+        val off = gate()
+        assertEquals(Decision.EMIT, off.offer("A", 0.0))
+        assertEquals(Decision.EMIT, off.offer("B", 10.0))
+    }
+
+    @Test
     fun memoryIsBoundedAndNeverBlocksForever() {
         val g = gate(windowMs = 60_000.0)
         for (i in 0 until 1000) assertEquals(Decision.EMIT, g.offer("code-$i", i.toDouble()))

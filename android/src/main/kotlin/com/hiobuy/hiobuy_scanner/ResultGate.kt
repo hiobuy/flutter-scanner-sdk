@@ -8,19 +8,23 @@ package com.hiobuy.hiobuy_scanner
  */
 class ResultGate {
     enum class Mode { SINGLE, CONTINUOUS }
-    enum class Decision { EMIT, DUPLICATE, CLOSED }
+    enum class Decision { EMIT, DUPLICATE, CLOSED, HELD }
 
     private var mode = Mode.CONTINUOUS
     private var windowMs = 1500.0
     private var accepting = true
+    private var holdMs = 0.0
+    private var lastEmitted: String? = null
+    private var lastEmittedSeenMs = 0.0
 
     /** value → time it was last seen (not last emitted), in milliseconds. */
     private val lastSeen = HashMap<String, Double>()
 
     @Synchronized
-    fun configure(mode: Mode, windowMs: Double) {
+    fun configure(mode: Mode, windowMs: Double, holdMs: Double = 0.0) {
         this.mode = mode
         this.windowMs = maxOf(0.0, windowMs)
+        this.holdMs = maxOf(0.0, holdMs)
     }
 
     /**
@@ -29,9 +33,18 @@ class ResultGate {
      * A value is a duplicate while it keeps being seen within the window, so a
      * barcode held in view is reported once, and reported again only after it
      * has been out of view for a full window (or after [resetDedupe]).
+     *
+     * Label hold: a label often carries more than one barcode. After a result,
+     * any *other* value is held back until the reported one has been out of
+     * view for [holdMs], so the camera resting on one label yields one result.
      */
     @Synchronized
     fun offer(value: String, nowMs: Double): Decision {
+        if (value == lastEmitted) {
+            lastEmittedSeenMs = nowMs
+        } else if (holdMs > 0 && lastEmitted != null && nowMs - lastEmittedSeenMs < holdMs) {
+            return Decision.HELD
+        }
         val last = lastSeen[value]
         val seenRecently = windowMs > 0 && last != null && nowMs - last < windowMs
         if (windowMs > 0 && (seenRecently || accepting)) {
@@ -42,6 +55,8 @@ class ResultGate {
         if (!accepting) return Decision.CLOSED
         if (seenRecently) return Decision.DUPLICATE
         if (mode == Mode.SINGLE) accepting = false
+        lastEmitted = value
+        lastEmittedSeenMs = nowMs
         return Decision.EMIT
     }
 
@@ -62,6 +77,7 @@ class ResultGate {
     @Synchronized
     fun resetDedupe() {
         lastSeen.clear()
+        lastEmitted = null
     }
 
     private fun remember(value: String, nowMs: Double) {

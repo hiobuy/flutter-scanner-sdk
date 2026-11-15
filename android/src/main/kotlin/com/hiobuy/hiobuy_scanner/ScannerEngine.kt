@@ -61,6 +61,15 @@ class EngineConfig(args: Map<*, *>) {
     val zoom: Double? = (args["zoom"] as? Number)?.toDouble()
     val autoZoom: Boolean = args["autoZoom"] as? Boolean ?: true
     val confirmations: Int = ((args["confirmations"] as? Number)?.toInt() ?: 2).coerceIn(1, 5)
+    val labelHoldMs: Double = (args["labelHoldMs"] as? Number)?.toDouble() ?: 400.0
+
+    /** Values fully matching one of these skip multi-frame confirmation. */
+    private val fastAccept: List<Regex> =
+        (args["fastAcceptPatterns"] as? List<*>)?.filterIsInstance<String>()?.mapNotNull {
+            try { Regex(it) } catch (e: Exception) { null } // an invalid pattern is ignored
+        } ?: emptyList()
+
+    fun isFastAccepted(value: String): Boolean = fastAccept.any { it.matches(value) }
     val viewWidth: Double = (args["viewWidth"] as? Number)?.toDouble() ?: 0.0
     val viewHeight: Double = (args["viewHeight"] as? Number)?.toDouble() ?: 0.0
 
@@ -159,6 +168,8 @@ class ScannerEngine(
     private val emitted = AtomicInteger()
     private val duplicates = AtomicInteger()
     private val outside = AtomicInteger()
+    private val heldBack = AtomicInteger()
+    private val fastAccepted = AtomicInteger()
 
     // ------------------------------------------------------------- lifecycle
 
@@ -193,7 +204,7 @@ class ScannerEngine(
         gate.resetDedupe()
         gate.open()
         pauseLevel = null
-        sequence.set(0); frames.set(0); detections.set(0); emitted.set(0); duplicates.set(0); outside.set(0)
+        sequence.set(0); frames.set(0); detections.set(0); emitted.set(0); duplicates.set(0); outside.set(0); heldBack.set(0); fastAccepted.set(0)
         startT0Nanos = t0Nanos
         awaitingFirstFrame.set(true)
         shouldRun = true
@@ -355,7 +366,7 @@ class ScannerEngine(
             viewWidth = cfg.viewWidth
             viewHeight = cfg.viewHeight
         }
-        gate.configure(cfg.mode, cfg.dedupeWindowMs)
+        gate.configure(cfg.mode, cfg.dedupeWindowMs, cfg.labelHoldMs)
     }
 
     /**
@@ -430,6 +441,8 @@ class ScannerEngine(
         "emitted" to emitted.get(),
         "duplicatesSuppressed" to duplicates.get(),
         "outsideRegion" to outside.get(),
+        "heldBack" to heldBack.get(),
+        "fastAccepted" to fastAccepted.get(),
     )
 
     // -------------------------------------------------------- host lifecycle
@@ -610,7 +623,8 @@ class ScannerEngine(
         // visible barcode almost never decodes to the same garbage twice.
         var firstNanos = tStart
         var firstAgeMs = frameAgeMs
-        if (cfg.confirmations > 1) {
+        val trusted = cfg.confirmations > 1 && cfg.isFastAccepted(bestValue)
+        if (cfg.confirmations > 1 && !trusted) {
             if (bestValue == candidateValue && tStart - candidateLastNanos < CONFIRM_MAX_GAP_NANOS) {
                 candidateCount++
             } else {
@@ -627,10 +641,12 @@ class ScannerEngine(
 
         when (gate.offer(bestValue, now / 1e6)) {
             ResultGate.Decision.DUPLICATE -> { duplicates.incrementAndGet(); return }
+            ResultGate.Decision.HELD -> { heldBack.incrementAndGet(); return }
             ResultGate.Decision.CLOSED -> return
             ResultGate.Decision.EMIT -> Unit
         }
         emitted.incrementAndGet()
+        if (trusted) fastAccepted.incrementAndGet()
 
         // Feedback is started at once but on its own thread: the vibrator and
         // tone calls can block for tens of milliseconds.

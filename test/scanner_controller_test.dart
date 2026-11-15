@@ -121,6 +121,8 @@ void main() {
         resolution: ScanResolution.fhd1080,
         zoom: 2,
         autoZoom: false,
+        fastAcceptPatterns: [r'JT\d{13}'],
+        labelHold: Duration(milliseconds: 250),
       ).toMap();
       expect(m['mode'], 'single');
       expect(m['formats'], ['qr', 'itf']);
@@ -133,6 +135,10 @@ void main() {
       expect(m['autoZoom'], false);
       expect(const ScannerConfig().toMap()['autoZoom'], true);
       expect(const ScannerConfig().toMap()['confirmations'], 2);
+      expect(m['fastAcceptPatterns'], [r'JT\d{13}']);
+      expect(m['labelHoldMs'], 250);
+      expect(const ScannerConfig().toMap()['fastAcceptPatterns'], isEmpty);
+      expect(const ScannerConfig().toMap()['labelHoldMs'], 400);
       expect(const ScannerConfig().copyWith(confirmations: 1).toMap()['confirmations'], 1);
     });
 

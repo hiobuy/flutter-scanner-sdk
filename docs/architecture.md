@@ -42,7 +42,7 @@ Only one controller owns the camera at a time. Starting a controller takes the c
 - `ImageAnalysis` uses `STRATEGY_KEEP_ONLY_LATEST` and `YUV_420_888`. Frames are wrapped with `InputImage.fromMediaImage`, with no copy or conversion. Each `ImageProxy` is closed in the ML Kit task's completion listener, which runs on success, failure and cancellation.
 - ML Kit Barcode Scanning with the bundled model, so devices without Google Play services work.
 - Auto-zoom uses ML Kit's zoom suggestions. When a code is located but too small to decode, the engine sets the suggested zoom ratio (capped at 5×) and returns to the configured zoom after 1.5 s without needing it.
-- Multi-frame confirmation: a value is offered to the gate only after `confirmations` consecutive sightings no more than 300 ms apart.
+- Multi-frame confirmation: a value is offered to the gate only after `confirmations` consecutive sightings no more than 300 ms apart. Values matching `fastAcceptPatterns` skip this.
 - ML Kit has no region of interest, so `scanRegion` is applied by filtering results on the centre of their bounding box.
 - The host activity's lifecycle is observed: the camera is released in the background and reopened in the foreground if it was running.
 
@@ -69,6 +69,10 @@ Threads: main (all CameraX calls), an analysis executor (frames in), a result ex
 ## De-duplication
 
 The gate remembers when each value was last *seen*, not last reported. A value held in view is therefore reported once, however long it stays there, and becomes reportable again after a full window out of view. The table is capped at 64 entries and expires by time, so nothing is blocked permanently. In single mode the table keeps refreshing while the gate is closed, so a parcel still under the camera when the app resumes is not reported twice.
+
+## Label hold
+
+The gate also remembers the last reported value and when it was last seen. Any other value is held back until the reported one has been out of view for `labelHold`. Combined with choosing the code nearest the centre in each frame, a camera resting on a label with several barcodes produces one result rather than one per barcode. The cost is that a different code cannot be reported within `labelHold` of the previous one still being visible.
 
 ## Measuring latency
 
