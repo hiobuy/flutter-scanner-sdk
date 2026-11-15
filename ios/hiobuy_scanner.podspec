@@ -11,7 +11,7 @@ Native barcode scanning for Flutter built on AVFoundation, with a persistent
 camera session for continuous warehouse scanning.
                        DESC
   s.homepage         = 'https://github.com/hiobuy/flutter-scanner-sdk'
-  s.license          = { :file => '../LICENSE' }
+  s.license          = { :type => 'MIT', :file => '../LICENSE' }
   s.author           = { 'HIOBuy' => 'https://github.com/hiobuy' }
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'

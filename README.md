@@ -169,3 +169,7 @@ cd example/android && ./gradlew :hiobuy_scanner:testDebugUnitTest   # Android, n
 ## Documentation
 
 - [Architecture and measurement method](docs/architecture.md)
+
+## License
+
+[MIT](LICENSE)
